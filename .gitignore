@@ -1,0 +1,6 @@
+.venv/
+.uv-tmp/
+*.egg-info/
+__pycache__/
+*.py[cod]
+/third_party/kev/

@@ -1,0 +1,75 @@
+[project]
+name = "lev"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[project.optional-dependencies]
+cuda124-torch26 = [
+    "kev",
+    "torch==2.6.0",
+]
+cuda128-torch28 = [
+    "causal-conv1d==1.7.0",
+    "fla-core==0.5.2",
+    "flash-linear-attention==0.5.2",
+    "kev",
+    "torch==2.8.0",
+    "triton==3.8.0",
+]
+
+[project.scripts]
+lev-evaluate = "lev.evaluate:main"
+lev-train = "lev.train:main"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-m 'not model_backed'"
+markers = ["model_backed: requires cached model weights and may require a GPU"]
+
+[tool.uv]
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+override-dependencies = ["triton==3.8.0; extra == 'cuda128-torch28'"]
+conflicts = [[
+    { extra = "cuda124-torch26" },
+    { extra = "cuda128-torch28" },
+]]
+
+[tool.uv.sources]
+kev = { path = "third_party/kev", editable = true }
+torch = [
+    { index = "pytorch-cu124", extra = "cuda124-torch26" },
+    { index = "pytorch-cu128", extra = "cuda128-torch28" },
+]
+
+[tool.uv.extra-build-dependencies]
+causal-conv1d = [{ requirement = "torch", match-runtime = true }]
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true

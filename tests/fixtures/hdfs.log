@@ -1,0 +1,4 @@
+081109 203518 143 INFO dfs.DataNode$DataXceiver: Receiving block blk_-1 src: /10.0.0.1:1
+081109 203519 144 INFO dfs.DataNode$DataXceiver: Received block blk_-1 of size 10
+081109 203520 145 WARN dfs.FSNamesystem: BLOCK* NameSystem.addStoredBlock: blockMap updated: blk_2
+081109 203521 146 INFO dfs.DataNode$DataXceiver: PacketResponder 0 for block blk_2 terminating
