@@ -1,4 +1,97 @@
-# LEV: A System-1 Decision Model for Log Intelligence
+<div align="center">
+
+# LEV - A System-1 Decision Model for Log Intelligence
+
+**One pass over log evidence returns a structured decision with probabilities.**
+
+[![Model](https://img.shields.io/badge/Model-Hugging%20Face-orange)](https://huggingface.co/cisco-ai/lev-3b)
+[![Paper](https://img.shields.io/badge/Paper-arXiv%202610.38915-b31b1b)](https://arxiv.org/abs/2610.38915)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
+
+[Model weights](https://huggingface.co/cisco-ai/lev-3b) · [Paper](https://arxiv.org/abs/2610.38915) · [Quickstart](#quickstart) · [Reproducing Lev-3B Training](docs/reproduction.md)
+
+</div>
+
+> **TL;DR** Lev-3B scores caller-supplied alternatives for questions about logs and returns a probability distribution over those alternatives. It trains first on general decision tasks, then on a mixture of log tasks. The released checkpoint handles multiple tasks, including anomaly detection and ATT&CK technique classification.
+
+**Highlights**
+
+- **Leading in-domain anomaly F1**, ahead of the compared decision models **(Jev, Microsoft Decision-1, and OpenAI Decisions)** and prompted frontier LLMs **(GPT-5.6 Luna and Sol)**. Lev scores **99.36% on BGL, 88.33% on Spirit, and 88.20% on Thunderbird**.
+- **Leading out-of-domain anomaly F1 on HDFS**, held out of anomaly supervision. Lev scores **43.32%**, compared with **25.91% for OpenAI Decisions zero-shot**, the strongest external comparator in the main comparison.
+- **Leading ATT&CK accuracy and macro-F1 among the compared decision models** across represented and withheld sourcetypes. Lev achieves **35.07% and 42.13% accuracy**, respectively, choosing among 130 techniques. GPT-5.6 Sol five-shot achieves higher accuracy at **45.5% and 56.2%**, respectively.
+- **Open weights, code, and documented training recipe.**
+- **Confident misses on HDFS.** Lev classifies 1,912 anomalous HDFS sessions as normal with at least 90% confidence.
+
+## Contents
+
+- [Quickstart](#quickstart)
+- [Implemented architecture](#implemented-architecture)
+- [Supplied-record format](#supplied-record-format)
+- [Train, calibrate, and evaluate](#train-calibrate-and-evaluate)
+- [Repository layout](#repository-layout)
+- [Attribution and terms](#attribution-and-terms)
+- [Research status](#research-status)
+
+## Quickstart
+
+### Requirements and installation
+
+- Linux on x86-64
+- Python 3.12
+- Git
+- [`uv`](https://docs.astral.sh/uv/)
+- An NVIDIA GPU and one of the supported CUDA/PyTorch environments below for
+  model evaluation and GPU training
+
+If your checkout does **not** contain `third_party/kev/`, prepare the KEV source
+from the repository root before installing dependencies:
+
+```bash
+python3 scripts/setup_kev.py
+```
+
+Checkouts that already contain `third_party/kev/` skip this source-setup step.
+The script refuses existing destinations without changing them; it is not an
+update command. Source setup requires access to GitHub and fetches the revision
+pinned in
+[`patches/kev/upstream-revision.txt`](patches/kev/upstream-revision.txt), applies
+[`patches/kev/changes.patch`](patches/kev/changes.patch), and creates
+`third_party/kev/`.
+
+Choose exactly one locked environment. The CUDA 12.4/PyTorch 2.6 environment
+is the baseline stack. The CUDA 12.8/PyTorch 2.8 environment additionally
+installs the Triton, Flash Linear Attention, and causal-convolution versions
+used by the H100 training path.
+
+For CUDA 12.4 with PyTorch 2.6:
+
+```bash
+export UV_PROJECT_ENVIRONMENT=/tmp/lev-cuda124-torch26
+uv sync --frozen --extra cuda124-torch26 --default-index https://pypi.org/simple
+```
+
+For CUDA 12.8 with PyTorch 2.8 and the optimized kernels:
+
+```bash
+export UV_PROJECT_ENVIRONMENT=/tmp/lev-cuda128-torch28
+uv sync --frozen --extra cuda128-torch28 --default-index https://pypi.org/simple
+```
+
+The environment path is local to the machine, while the same repository can
+be shared. The lockfile resolves general packages from public PyPI and each
+PyTorch build from its matching public CUDA index. The two extras are mutually
+exclusive.
+
+CPU-only tests do not require GPU execution, but they still require one of the
+two dependency environments above because LEV imports KEV and PyTorch.
+
+Run the test suite:
+
+```bash
+uv run pytest -q
+```
+
+---
 
 LEV is a research implementation of a small, typed decision model for system
 logs. Starting from supplied KEV labelled-request JSONLs, LEV adapts a supported
@@ -71,63 +164,6 @@ Evaluation produces one prediction row per question, including `option_keys`,
 `probabilities`, logits, the gold index, and the predicted index/option. Each
 probability vector is normalized over that question's alternatives. For
 `score`, the evaluator also records the expected zero-based level.
-
-## Requirements and installation
-
-- Linux on x86-64
-- Python 3.12
-- Git
-- [`uv`](https://docs.astral.sh/uv/)
-- An NVIDIA GPU and one of the supported CUDA/PyTorch environments below for
-  model evaluation and GPU training
-
-If your checkout does **not** contain `third_party/kev/`, prepare the KEV source
-from the repository root before installing dependencies:
-
-```bash
-python3 scripts/setup_kev.py
-```
-
-Checkouts that already contain `third_party/kev/` skip this source-setup step.
-The script refuses existing destinations without changing them; it is not an
-update command. Source setup requires access to GitHub and fetches the revision
-pinned in
-[`patches/kev/upstream-revision.txt`](patches/kev/upstream-revision.txt), applies
-[`patches/kev/changes.patch`](patches/kev/changes.patch), and creates
-`third_party/kev/`.
-
-Choose exactly one locked environment. The CUDA 12.4/PyTorch 2.6 environment
-is the baseline stack. The CUDA 12.8/PyTorch 2.8 environment additionally
-installs the Triton, Flash Linear Attention, and causal-convolution versions
-used by the H100 training path.
-
-For CUDA 12.4 with PyTorch 2.6:
-
-```bash
-export UV_PROJECT_ENVIRONMENT=/tmp/lev-cuda124-torch26
-uv sync --frozen --extra cuda124-torch26 --default-index https://pypi.org/simple
-```
-
-For CUDA 12.8 with PyTorch 2.8 and the optimized kernels:
-
-```bash
-export UV_PROJECT_ENVIRONMENT=/tmp/lev-cuda128-torch28
-uv sync --frozen --extra cuda128-torch28 --default-index https://pypi.org/simple
-```
-
-The environment path is local to the machine, while the same repository can
-be shared. The lockfile resolves general packages from public PyPI and each
-PyTorch build from its matching public CUDA index. The two extras are mutually
-exclusive.
-
-CPU-only tests do not require GPU execution, but they still require one of the
-two dependency environments above because LEV imports KEV and PyTorch.
-
-Run the test suite:
-
-```bash
-uv run pytest -q
-```
 
 ## Train, calibrate, and evaluate
 
