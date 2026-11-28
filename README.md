@@ -12,7 +12,7 @@
 
 </div>
 
-> **TL;DR** Lev-3B scores caller-supplied alternatives for questions about logs and returns a probability distribution over those alternatives. It trains first on general decision tasks, then on a mixture of log tasks. The released checkpoint handles multiple tasks, including anomaly detection and ATT&CK technique classification.
+> **TL;DR** Most log models are built for one specific task. Lev-3B is trained as a general decision model: it reads a log state once and returns a probability distribution over caller-supplied alternatives, with no per-task tuning. The training recipe - a decision-first curriculum, then a mixed log stage - is the contribution, and it is public. The released checkpoint handles multiple tasks, including anomaly detection and ATT&CK technique classification.
 
 **Highlights**
 
@@ -90,6 +90,51 @@ Run the test suite:
 ```bash
 uv run pytest -q
 ```
+
+### Run inference
+
+Activate the installed environment, download the checkpoint, and enter its
+directory:
+
+```bash
+source "$UV_PROJECT_ENVIRONMENT/bin/activate"
+hf download cisco-ai/lev-3b --local-dir ./lev-3b
+cd lev-3b
+```
+
+Run this Python example from the checkpoint directory:
+
+```python
+from pathlib import Path
+
+import torch
+from kev.api import SystemOneRequest, to_record
+from kev.evaluate import load
+
+model_dir = Path.cwd()
+tokenizer, model = load(str(model_dir), dev="cuda", dtype=torch.bfloat16)
+
+request = {
+    "state": '["INFO service started", "ERROR request failed after repeated retries"]',
+    "questions": {
+        "is_anomalous": {
+            "type": "noul",
+            "instructions": "Is this log session anomalous?",
+            "criteria": {
+                "false": "Routine or successful normal system operation",
+                "true": "Failure, error, or behavior inconsistent with normal operation",
+            },
+        }
+    },
+}
+record, _ = to_record(SystemOneRequest.model_validate(request))
+encoded = model.encode(tokenizer, record, strict=True)
+probabilities = model.probs(encoded)[0]
+print(dict(zip(["false", "true"], probabilities.tolist())))
+```
+
+For input details and applying the supplied temperature, see the
+[Hugging Face inference guide](https://huggingface.co/cisco-ai/lev-3b#local-inference).
 
 ---
 
